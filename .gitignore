@@ -1,0 +1,58 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.pytest_cache/
+
+# --- Virtual environments ---
+venv/
+env/
+.venv/
+ENV/
+
+# --- Flask ---
+instance/
+.flaskenv
+
+# --- Environment variables / secrets ---
+.env
+.env.local
+*.key
+
+# --- ML model caches / weights ---
+# Hugging Face downloads model weights locally (100s of MB each) --
+# never commit these, they're re-downloaded automatically on first run.
+.cache/
+*.bin
+*.safetensors
+*.onnx
+checkpoints/
+models/
+
+# --- Datasets ---
+# Kaggle CSVs and similar are large and shouldn't live in git history.
+# Consider a README note on where to download them instead.
+*.csv
+*.tsv
+data/
+datasets/
+
+# --- Jupyter (if you prototype in notebooks later) ---
+.ipynb_checkpoints/
+
+# --- Browser extension (once you get there) ---
+node_modules/
+dist/
+build/
+*.crx
+*.pem
+
+# --- OS / editor cruft ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
