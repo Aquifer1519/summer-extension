@@ -32,6 +32,11 @@ instance/
 checkpoints/
 models/
 
+# Fine-tuned model output (from fine_tune_detector.py / Trainer checkpoints)
+tweepfake-detector/
+*-detector/
+runs/
+
 # --- Datasets ---
 # Kaggle CSVs and similar are large and shouldn't live in git history.
 # Consider a README note on where to download them instead.
@@ -39,6 +44,11 @@ models/
 *.tsv
 data/
 datasets/
+
+# Self-generated synthetic AI-tweet dataset (large, regenerable via script
+# rather than versioned)
+synthetic_tweets*.json
+synthetic_tweets*.csv
 
 # --- Jupyter (if you prototype in notebooks later) ---
 .ipynb_checkpoints/

@@ -1,17 +1,25 @@
 """
-Minimal local test server for the sentiment scale.
+Local test server: sentiment scale + AI-likelihood detector, side by side.
 
 Run with:
     pip install flask
     python app.py
 
 Then open http://127.0.0.1:5000 in your browser. Type or paste text,
-hit Analyze (or press Ctrl+Enter), and see the score update without a
+hit Analyze (or press Ctrl+Enter), and see both scores update without a
 page reload.
+
+NOTE: the AI-likelihood bar currently uses the pretrained HC3-based
+detector from ai_detector.py (Hello-SimpleAI/chatgpt-detector-roberta).
+As discussed, this is a placeholder -- known to be a poor domain fit for
+short political posts (see ai_detector.py's docstring/notes) -- swap in
+the custom fine-tuned model once it exists. detect() is imported directly
+so that swap only requires changing ai_detector.py, not this file.
 """
 
 from flask import Flask, request, jsonify, render_template_string
 from sentiment import analyze
+from detector import detect
 
 app = Flask(__name__)
 
@@ -20,7 +28,7 @@ PAGE = """
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Sentiment Scale Tester</title>
+  <title>Text Analysis Tester</title>
   <style>
     body {
       font-family: -apple-system, Segoe UI, Roboto, sans-serif;
@@ -50,21 +58,33 @@ PAGE = """
       color: white;
     }
     button:disabled { opacity: 0.5; cursor: default; }
-    #result {
-      margin-top: 24px;
+    .panel {
+      margin-top: 20px;
       padding: 16px;
       border-radius: 8px;
       background: #f5f5f5;
       display: none;
     }
-    #bar-track {
+    .panel h2 {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #888;
+      margin: 0 0 8px 0;
+    }
+    .bar-track {
       position: relative;
       height: 24px;
-      background: linear-gradient(to right, #d32f2f, #eee 50%, #2e7d32);
       border-radius: 12px;
       margin: 12px 0;
     }
-    #bar-marker {
+    #sentiment-track {
+      background: linear-gradient(to right, #d32f2f, #eee 50%, #2e7d32);
+    }
+    #ai-track {
+      background: linear-gradient(to right, #2e7d32, #eee 50%, #d32f2f);
+    }
+    .bar-marker {
       position: absolute;
       top: -4px;
       width: 4px;
@@ -73,33 +93,66 @@ PAGE = """
       border-radius: 2px;
       transform: translateX(-2px);
     }
-    #label { font-size: 18px; font-weight: 600; }
-    #score { color: #555; font-size: 14px; }
+    .label { font-size: 18px; font-weight: 600; }
+    .score { color: #555; font-size: 14px; }
+    .scale-legend { font-size:12px;color:#888;display:flex;justify-content:space-between; }
     .error { color: #d32f2f; }
+    .note { font-size: 11px; color: #aaa; margin-top: 8px; }
   </style>
 </head>
 <body>
-  <h1>Sentiment Scale Tester</h1>
+  <h1>Text Analysis Tester</h1>
   <textarea id="text" placeholder="Type or paste text here... (Ctrl+Enter to analyze)"></textarea>
   <br>
   <button id="analyze-btn">Analyze</button>
 
-  <div id="result">
-    <div id="label"></div>
-    <div id="score"></div>
-    <div id="bar-track"><div id="bar-marker"></div></div>
-    <div style="font-size:12px;color:#888;display:flex;justify-content:space-between;">
+  <div id="sentiment-panel" class="panel">
+    <h2>Sentiment</h2>
+    <div id="sentiment-label" class="label"></div>
+    <div id="sentiment-score" class="score"></div>
+    <div id="sentiment-track" class="bar-track"><div id="sentiment-marker" class="bar-marker"></div></div>
+    <div class="scale-legend">
       <span>strongly negative</span><span>neutral</span><span>strongly positive</span>
     </div>
+  </div>
+
+  <div id="ai-panel" class="panel">
+    <h2>AI Likelihood</h2>
+    <div id="ai-label" class="label"></div>
+    <div id="ai-score" class="score"></div>
+    <div id="ai-track" class="bar-track"><div id="ai-marker" class="bar-marker"></div></div>
+    <div class="scale-legend">
+      <span>likely human</span><span>uncertain</span><span>likely AI</span>
+    </div>
+    <div class="note">Using pretrained HC3-based detector (placeholder) -- not tuned for short political posts. Will be swapped for a custom-trained model.</div>
   </div>
 
   <script>
     const btn = document.getElementById('analyze-btn');
     const textEl = document.getElementById('text');
-    const resultEl = document.getElementById('result');
-    const labelEl = document.getElementById('label');
-    const scoreEl = document.getElementById('score');
-    const markerEl = document.getElementById('bar-marker');
+
+    const sentimentPanel = document.getElementById('sentiment-panel');
+    const sentimentLabel = document.getElementById('sentiment-label');
+    const sentimentScore = document.getElementById('sentiment-score');
+    const sentimentMarker = document.getElementById('sentiment-marker');
+
+    const aiPanel = document.getElementById('ai-panel');
+    const aiLabel = document.getElementById('ai-label');
+    const aiScore = document.getElementById('ai-score');
+    const aiMarker = document.getElementById('ai-marker');
+
+    function showError(panel, labelEl, scoreEl, message) {
+      labelEl.textContent = 'Error';
+      labelEl.className = 'label error';
+      scoreEl.textContent = message;
+      panel.style.display = 'block';
+    }
+
+    function aiLabelForScore(score) {
+      if (score >= 0.7) return 'likely AI';
+      if (score >= 0.4) return 'uncertain';
+      return 'likely human';
+    }
 
     async function runAnalysis() {
       const text = textEl.value.trim();
@@ -117,23 +170,29 @@ PAGE = """
         const data = await res.json();
 
         if (data.error) {
-          labelEl.textContent = 'Error';
-          labelEl.className = 'error';
-          scoreEl.textContent = data.error;
+          showError(sentimentPanel, sentimentLabel, sentimentScore, data.error);
+          showError(aiPanel, aiLabel, aiScore, data.error);
         } else {
-          labelEl.textContent = data.scale_label;
-          labelEl.className = '';
-          scoreEl.textContent = `score: ${data.scale_score.toFixed(4)}  |  raw: ${JSON.stringify(data.raw_scores)}`;
-          // score ranges -1 to 1 -> map to 0%-100% position on the bar
-          const pct = ((data.scale_score + 1) / 2) * 100;
-          markerEl.style.left = pct + '%';
+          // --- Sentiment panel ---
+          sentimentLabel.textContent = data.sentiment.scale_label;
+          sentimentLabel.className = 'label';
+          sentimentScore.textContent = `score: ${data.sentiment.scale_score.toFixed(4)}  |  raw: ${JSON.stringify(data.sentiment.raw_scores)}`;
+          const sentPct = ((data.sentiment.scale_score + 1) / 2) * 100;  // -1..1 -> 0..100
+          sentimentMarker.style.left = sentPct + '%';
+          sentimentPanel.style.display = 'block';
+
+          // --- AI likelihood panel ---
+          const aiVal = data.ai_detection.ai_likelihood;
+          aiLabel.textContent = aiLabelForScore(aiVal);
+          aiLabel.className = 'label';
+          aiScore.textContent = `AI likelihood: ${aiVal.toFixed(4)}  |  raw: ${JSON.stringify(data.ai_detection.raw_scores)}`;
+          const aiPct = aiVal * 100;  // 0..1 -> 0..100
+          aiMarker.style.left = aiPct + '%';
+          aiPanel.style.display = 'block';
         }
-        resultEl.style.display = 'block';
       } catch (err) {
-        labelEl.textContent = 'Error';
-        labelEl.className = 'error';
-        scoreEl.textContent = 'Could not reach the server: ' + err;
-        resultEl.style.display = 'block';
+        showError(sentimentPanel, sentimentLabel, sentimentScore, 'Could not reach the server: ' + err);
+        showError(aiPanel, aiLabel, aiScore, 'Could not reach the server: ' + err);
       } finally {
         btn.disabled = false;
         btn.textContent = 'Analyze';
@@ -163,8 +222,15 @@ def analyze_endpoint():
     if not text:
         return jsonify({"error": "No text provided"}), 400
 
-    result = analyze(text)
-    return jsonify(result)
+    sentiment_result = analyze(text)
+    ai_result = detect(text)
+
+    return jsonify(
+        {
+            "sentiment": sentiment_result,
+            "ai_detection": ai_result,
+        }
+    )
 
 
 if __name__ == "__main__":

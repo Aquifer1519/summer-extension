@@ -10,7 +10,9 @@ import re
 import pandas as pd
 from sentiment import analyze
 
-CSV_PATH = "hashtag_donaldtrump.csv"  # update to your actual downloaded filename
+CSV_PATH = (
+    "data\hashtag_donaldtrump.csv"  # hashtag_donaldtrump.csv or hashtag_joebiden.csv
+)
 TEXT_COLUMN = "tweet"  # update if the column name differs
 SAMPLE_SIZE = 25
 CANDIDATE_POOL_SIZE = 500  # pull this many candidates first, then filter down
