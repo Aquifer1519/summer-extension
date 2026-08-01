@@ -31,25 +31,74 @@ client = OpenAI()  # picks up OPENAI_API_KEY from environment
 
 MODEL = "gpt-4o-mini"  # confirm this matches a model your account has access to
 OUTPUT_FILE = "synthetic_tweets.json"
-NUM_TWEETS_TO_GENERATE = 500
+NUM_TWEETS_TO_GENERATE = 100
 TWEETS_PER_API_CALL = 10  # ask for a batch per call, cheaper than one-at-a-time
 
 TOPICS = [
+    # Economy
     "the economy and inflation",
+    "gas prices",
+    "the housing market and affordability",
+    "student loan debt and forgiveness",
+    "minimum wage policy",
+    "tax policy for the wealthy vs middle class",
+    "unemployment and job market conditions",
+    "the national debt and government spending",
+    # Healthcare
     "healthcare policy",
+    "prescription drug prices",
+    "the Affordable Care Act / ACA",
+    "abortion policy and reproductive rights",
+    "mental health care access",
+    # Immigration
     "immigration policy",
+    "border security",
+    "asylum seekers and refugees",
+    "pathway to citizenship debates",
+    # Environment / energy
     "climate change and energy policy",
+    "renewable energy vs fossil fuels",
+    "electric vehicle policy and incentives",
+    "natural disasters and government response",
+    # Democracy / elections
     "the state of American democracy",
     "voting and election integrity",
+    "gerrymandering and redistricting",
+    "campaign fundraising and political spending",
+    "a swing state election result",
+    "voter ID laws",
+    "mail-in and early voting",
+    # Courts / law
     "the Supreme Court",
+    "a recent Supreme Court ruling",
+    "judicial appointments and confirmations",
+    "criminal justice reform",
+    "policing and law enforcement policy",
+    # Foreign policy
     "foreign policy and international relations",
+    "US relations with China",
+    "US involvement in an overseas conflict",
+    "NATO and international alliances",
+    "trade policy and tariffs",
+    # Domestic social issues
     "gun policy",
     "education policy",
+    "school curriculum and book bans",
+    "LGBTQ rights and policy debates",
+    "social media regulation and free speech online",
+    "big tech and antitrust policy",
+    "labor unions and workers' rights",
+    "housing and homelessness policy",
+    # Political process / media
     "a recent political debate",
-    "campaign fundraising and political spending",
     "media coverage of politics",
-    "a swing state election result",
     "political polarization in the US",
+    "a politician's public gaffe or scandal",
+    "a political ad or campaign message",
+    "third-party and independent candidates",
+    "local or state-level politics",
+    "a congressional hearing",
+    "a presidential press conference",
 ]
 
 STANCES = [
@@ -80,17 +129,39 @@ FORMATS = [
 
 
 def build_prompt() -> str:
-    topic = random.choice(TOPICS)
-    stance = random.choice(STANCES)
-    tone = random.choice(TONES)
-    fmt = random.choice(FORMATS)
+    # Assign a DISTINCT topic/stance/tone/format combo to each individual
+    # tweet in the batch -- assigning one combo per whole batch (the old
+    # approach) causes all N tweets in a call to read like paraphrases of
+    # each other, since they share the same instructions.
+    specs = []
+    for i in range(TWEETS_PER_API_CALL):
+        specs.append(
+            {
+                "topic": random.choice(TOPICS),
+                "stance": random.choice(STANCES),
+                "tone": random.choice(TONES),
+                "format": random.choice(FORMATS),
+            }
+        )
 
-    return f"""Write {TWEETS_PER_API_CALL} short social media posts (tweet-length, under 280 characters each) about {topic}.
-Each post should be {stance}, with a {tone} tone, {fmt}.
-Vary the wording, structure, and specific claims across all {TWEETS_PER_API_CALL} posts -- they should not read like variations of the same sentence.
-Write them the way real, opinionated people post about politics online -- direct, informal, not neutral-sounding.
+    spec_lines = "\n".join(
+        f"{i+1}. Topic: {s['topic']} | Stance: {s['stance']} | Tone: {s['tone']} | Format: {s['format']}"
+        for i, s in enumerate(specs)
+    )
 
-Return ONLY a JSON array of {TWEETS_PER_API_CALL} strings, nothing else -- no preamble, no markdown code fences.
+    return f"""Write {TWEETS_PER_API_CALL} short social media posts (tweet-length, under 280 characters each) about US politics.
+Each post must follow ITS OWN spec below -- do not blend or repeat structure across posts:
+
+{spec_lines}
+
+Important instructions for realism and variety:
+- Do NOT use a uniform template. Real people don't all write in the "complaint + emoji + hashtag call-to-action" style -- vary sentence structure, length, and opening style across all {TWEETS_PER_API_CALL} posts.
+- Not every post needs emoji or a hashtag. Include some posts with NO emoji and NO hashtags at all.
+- Vary punctuation and polish: include some posts that are rougher, more fragment-like, or less grammatically perfect, the way real casual tweets are -- not every post should read like polished ad copy.
+- For any post using the "reply" format, invent a plausible-looking fake handle (e.g. something like @mike_t2020 or @patriot_jenny) -- never use the literal placeholder text "@someuser".
+- Avoid starting multiple posts with the same rhetorical pattern (e.g. don't have several posts all start with a question, or all start with "Just when...").
+
+Return ONLY a JSON array of {TWEETS_PER_API_CALL} strings, in the same order as the specs above, nothing else -- no preamble, no markdown code fences.
 Example format: ["post one text here", "post two text here", ...]"""
 
 
@@ -99,6 +170,9 @@ def generate_batch() -> list[str]:
     response = client.chat.completions.create(
         model=MODEL,
         max_tokens=2000,
+        temperature=1.1,  # slightly above default -- more lexical variety
+        frequency_penalty=0.6,  # discourage repeating the same words/phrases
+        presence_penalty=0.4,  # discourage repeating the same topics/structures
         messages=[{"role": "user", "content": prompt}],
     )
     raw_text = response.choices[0].message.content.strip()

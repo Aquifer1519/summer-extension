@@ -22,7 +22,7 @@ source venv/bin/activate   # on Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-If you don't have a `requirements.txt` yet, at minimum you'll need:
+at minimum you'll need:
 
 ```bash
 pip install torch transformers scikit-learn pandas langdetect flask datasets accelerate
