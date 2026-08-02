@@ -34,14 +34,15 @@ from transformers import (
 )
 from datasets import Dataset
 
-# --- CONFIG: update these after inspecting the actual downloaded files ---
-TRAIN_CSV = "data\train.csv"
-VAL_CSV = "data\val.csv"
-TEST_CSV = "data\test.csv"
-TEXT_COLUMN = "text"  # confirm actual column name in the CSV
-LABEL_COLUMN = "account.type"  # confirm actual column name -- TweepFake uses this in the original repo
-HUMAN_VALUE = "human"  # confirm actual label string/value
-BOT_VALUE = "bot"  # confirm actual label string/value
+# --- CONFIG: matches the output of prepare_dataset.py ---
+DATA_DIR = "data"
+TRAIN_CSV = f"{DATA_DIR}/train.csv"
+VAL_CSV = f"{DATA_DIR}/val.csv"
+TEST_CSV = f"{DATA_DIR}/test.csv"
+TEXT_COLUMN = "text"
+LABEL_COLUMN = "label"
+HUMAN_VALUE = "human"
+AI_VALUE = "ai"
 
 MODEL_NAME = "roberta-base"
 OUTPUT_DIR = "./tweepfake-detector"
@@ -53,7 +54,7 @@ BATCH_SIZE = 16
 def load_and_prepare(csv_path: str) -> Dataset:
     df = pd.read_csv(csv_path)
     df = df[[TEXT_COLUMN, LABEL_COLUMN]].dropna()
-    df["label"] = df[LABEL_COLUMN].map({HUMAN_VALUE: 0, BOT_VALUE: 1})
+    df["label"] = df[LABEL_COLUMN].map({HUMAN_VALUE: 0, AI_VALUE: 1})
     df = df.dropna(subset=["label"])  # drop rows where label mapping failed
     df["label"] = df["label"].astype(int)
     return Dataset.from_pandas(df[[TEXT_COLUMN, "label"]].reset_index(drop=True))
