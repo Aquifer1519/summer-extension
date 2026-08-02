@@ -10,11 +10,11 @@ hit Analyze (or press Ctrl+Enter), and see both scores update without a
 page reload.
 
 NOTE: the AI-likelihood bar currently uses the pretrained HC3-based
-detector from ai_detector.py (Hello-SimpleAI/chatgpt-detector-roberta).
+detector from detector.py (Hello-SimpleAI/chatgpt-detector-roberta).
 As discussed, this is a placeholder -- known to be a poor domain fit for
-short political posts (see ai_detector.py's docstring/notes) -- swap in
+short political posts (see detector.py's docstring/notes) -- swap in
 the custom fine-tuned model once it exists. detect() is imported directly
-so that swap only requires changing ai_detector.py, not this file.
+so that swap only requires changing detector.py, not this file.
 """
 
 from flask import Flask, request, jsonify, render_template_string

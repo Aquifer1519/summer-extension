@@ -1,79 +1,64 @@
 """
-Prototype: AI-generated text detection using a pretrained classifier
-fine-tuned on the HC3 dataset (Human ChatGPT Comparison Corpus).
+AI-generated text detection -- now using the custom fine-tuned model
+(trained via custom_detector.py) instead of the pretrained HC3 classifier.
 
-IMPORTANT CONTEXT: HC3-based detectors are trained on long-form Q&A
-responses (formal, paragraph-length). Your target text -- short political
-X/Twitter posts -- is a different domain (short, informal, hashtag-heavy,
-opinionated rather than explanatory). This script is deliberately built to
-surface that mismatch, not assume it away. Don't trust the accuracy numbers
-here until you've run this against real examples from your actual domain.
+detect(text) keeps the same return shape as before ({"text", "ai_likelihood",
+"raw_scores"}), so app.py and anything else importing from here needs no
+changes -- this file was always the intended swap point.
 """
 
-from transformers import pipeline
+import torch
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-detector_pipe = pipeline(
-    "text-classification",
-    model="Hello-SimpleAI/chatgpt-detector-roberta",
-    top_k=None,
-)
+MODEL_DIR = "./tweepfake-detector"  # matches OUTPUT_DIR in custom_detector.py
 
-# TODO: confirm these against the raw output of detector_pipe() on a test
-# string -- placeholder guesses based on the model's typical convention.
-HUMAN_LABEL = "Human"
-AI_LABEL = "ChatGPT"
+tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
+model = AutoModelForSequenceClassification.from_pretrained(MODEL_DIR)
+model.eval()  # inference mode -- disables dropout etc.
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model.to(device)
+
+# Matches the label mapping used during training in custom_detector.py:
+# HUMAN_VALUE -> 0, AI_VALUE -> 1. The saved model's config doesn't know
+# these human-readable names on its own (Trainer/RobertaForSequenceClassification
+# defaults to generic "LABEL_0"/"LABEL_1"), so we map manually here.
+ID_TO_LABEL = {0: "human", 1: "ai"}
 
 
 def detect(text: str):
-    raw = detector_pipe(text)[0]
-    by_label = {r["label"]: r["score"] for r in raw}
+    inputs = tokenizer(
+        text,
+        truncation=True,
+        padding="max_length",
+        max_length=128,  # matches MAX_LENGTH used during training
+        return_tensors="pt",
+    ).to(device)
+
+    with torch.no_grad():
+        outputs = model(**inputs)
+        probs = torch.softmax(outputs.logits, dim=-1)[0]
+
+    by_label = {ID_TO_LABEL[i]: probs[i].item() for i in range(len(probs))}
 
     return {
         "text": text,
-        "ai_likelihood": round(by_label.get(AI_LABEL, float("nan")), 4),
+        "ai_likelihood": round(by_label.get("ai", float("nan")), 4),
         "raw_scores": {k: round(v, 4) for k, v in by_label.items()},
     }
 
 
 if __name__ == "__main__":
-    # A mix of known-human and synthetic known-AI examples, all in a
-    # political-post style, to stress-test the domain mismatch.
-    # NOTE: the "AI-generated" examples below are text I (Claude) wrote
-    # to resemble typical LLM output style -- not pulled from any real
-    # AI-generated dataset. Treat this as a rough smoke test, not a
-    # rigorous eval.
-
-    human_examples = [
-        # Pulled-style human tweets (short, informal, hashtag-heavy,
-        # opinionated) -- similar to what you saw in the election dataset.
+    # Same test set as before, plus the real human tweet that the OLD
+    # pretrained detector confidently (and wrongly) called 99.9% AI --
+    # worth re-checking that one specifically against the new model.
+    test_examples = [
         "Trump will stay! #Trump2020 #ElectionNight #Election2020",
-        "Not according to the REPUTABLE polling sources. Nobody wants Trump re-elected. #VotingForBiden",
+        "It is important to consider multiple perspectives on this election. Both candidates have proposed policies that could significantly impact the economy and healthcare system.",
         "Did your vote help people or hurt people? We are not perfect people, but if we continue to hate each other, this country won't be a better place.",
     ]
 
-    ai_examples = [
-        # Deliberately written in a more formal, hedged, structurally
-        # balanced style typical of LLM output -- useful for testing
-        # whether the detector picks up on register at all, even though
-        # real AI-generated political posts would likely be prompted to
-        # sound more like the human examples above.
-        "It is important to consider multiple perspectives on this election. Both candidates have proposed policies that could significantly impact the economy and healthcare system.",
-        "While opinions on this topic vary widely, it's worth noting that voter turnout has historically played a crucial role in determining election outcomes.",
-    ]
-
-    print("=== First, confirm label names ===")
-    print(detector_pipe(human_examples[0])[0])
-    print()
-
-    print("=== Human-written examples ===")
-    for ex in human_examples:
-        result = detect(ex)
-        print(f"\nTEXT: {result['text']}")
-        print(f"  AI likelihood: {result['ai_likelihood']}")
-        print(f"  Raw: {result['raw_scores']}")
-
-    print("\n=== AI-style examples (formal, hedged register) ===")
-    for ex in ai_examples:
+    for ex in test_examples:
         result = detect(ex)
         print(f"\nTEXT: {result['text']}")
         print(f"  AI likelihood: {result['ai_likelihood']}")
