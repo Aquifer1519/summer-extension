@@ -31,7 +31,7 @@ client = OpenAI()  # picks up OPENAI_API_KEY from environment
 
 MODEL = "gpt-4o-mini"  # confirm this matches a model your account has access to
 OUTPUT_FILE = "synthetic_tweets.json"
-NUM_TWEETS_TO_GENERATE = 100
+NUM_TWEETS_TO_GENERATE = 10000
 TWEETS_PER_API_CALL = 10  # ask for a batch per call, cheaper than one-at-a-time
 
 TOPICS = [
@@ -116,6 +116,9 @@ TONES = [
     "celebratory",
     "matter-of-fact, reporting information",
     "mocking or dismissive of the opposing view",
+    "neutral and hedged, presenting both sides journalistically (e.g. 'while supporters argue X, critics say Y')",
+    "resigned or exhausted-sounding, like someone tired of the news cycle",
+    "condescending, explaining something as if the reader doesn't already know it",
 ]
 
 FORMATS = [
@@ -125,14 +128,28 @@ FORMATS = [
     "including an emoji or two",
     "as a short, punchy one-liner",
     "as a slightly longer, multi-sentence post",
+    "using modern internet meme phrasing, e.g. starting with 'not me...' or 'the way...' or 'bro...'",
+    "all lowercase, no punctuation, casual texting style",
+    "as a quote-tweet style reaction to something someone else supposedly said",
+    "as the start of a longer thread (e.g. '1/' or 'thread:' at the start)",
+]
+
+PERSONAS = [
+    "a partisan pundit account with a large following",
+    "an ordinary person just venting after seeing the news",
+    "a self-styled independent/centrist who criticizes both sides",
+    "a young, terminally-online commenter",
+    "an older, more formal social media user who isn't very tech-savvy",
+    "a local news aggregator account sharing a headline with brief commentary",
+    "someone quote-replying to argue with a stranger",
 ]
 
 
 def build_prompt() -> str:
-    # Assign a DISTINCT topic/stance/tone/format combo to each individual
-    # tweet in the batch -- assigning one combo per whole batch (the old
-    # approach) causes all N tweets in a call to read like paraphrases of
-    # each other, since they share the same instructions.
+    # Assign a DISTINCT topic/stance/tone/format/persona combo to each
+    # individual tweet in the batch -- assigning one combo per whole batch
+    # (the old approach) causes all N tweets in a call to read like
+    # paraphrases of each other, since they share the same instructions.
     specs = []
     for i in range(TWEETS_PER_API_CALL):
         specs.append(
@@ -141,16 +158,17 @@ def build_prompt() -> str:
                 "stance": random.choice(STANCES),
                 "tone": random.choice(TONES),
                 "format": random.choice(FORMATS),
+                "persona": random.choice(PERSONAS),
             }
         )
 
     spec_lines = "\n".join(
-        f"{i+1}. Topic: {s['topic']} | Stance: {s['stance']} | Tone: {s['tone']} | Format: {s['format']}"
+        f"{i+1}. Topic: {s['topic']} | Stance: {s['stance']} | Tone: {s['tone']} | Format: {s['format']} | Written as: {s['persona']}"
         for i, s in enumerate(specs)
     )
 
     return f"""Write {TWEETS_PER_API_CALL} short social media posts (tweet-length, under 280 characters each) about US politics.
-Each post must follow ITS OWN spec below -- do not blend or repeat structure across posts:
+Each post must follow ITS OWN spec below -- do not blend or repeat structure across posts. The "Written as" field describes the kind of person/account posting -- let it meaningfully shape vocabulary, formality, and structure, not just topic choice:
 
 {spec_lines}
 
