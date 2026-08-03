@@ -44,22 +44,26 @@ TOPICS = [
     "tax policy for the wealthy vs middle class",
     "unemployment and job market conditions",
     "the national debt and government spending",
+
     # Healthcare
     "healthcare policy",
     "prescription drug prices",
     "the Affordable Care Act / ACA",
     "abortion policy and reproductive rights",
     "mental health care access",
+
     # Immigration
     "immigration policy",
     "border security",
     "asylum seekers and refugees",
     "pathway to citizenship debates",
+
     # Environment / energy
     "climate change and energy policy",
     "renewable energy vs fossil fuels",
     "electric vehicle policy and incentives",
     "natural disasters and government response",
+
     # Democracy / elections
     "the state of American democracy",
     "voting and election integrity",
@@ -68,18 +72,21 @@ TOPICS = [
     "a swing state election result",
     "voter ID laws",
     "mail-in and early voting",
+
     # Courts / law
     "the Supreme Court",
     "a recent Supreme Court ruling",
     "judicial appointments and confirmations",
     "criminal justice reform",
     "policing and law enforcement policy",
+
     # Foreign policy
     "foreign policy and international relations",
     "US relations with China",
     "US involvement in an overseas conflict",
     "NATO and international alliances",
     "trade policy and tariffs",
+
     # Domestic social issues
     "gun policy",
     "education policy",
@@ -89,6 +96,7 @@ TOPICS = [
     "big tech and antitrust policy",
     "labor unions and workers' rights",
     "housing and homelessness policy",
+
     # Political process / media
     "a recent political debate",
     "media coverage of politics",
@@ -128,28 +136,14 @@ FORMATS = [
     "including an emoji or two",
     "as a short, punchy one-liner",
     "as a slightly longer, multi-sentence post",
-    "using modern internet meme phrasing, e.g. starting with 'not me...' or 'the way...' or 'bro...'",
-    "all lowercase, no punctuation, casual texting style",
-    "as a quote-tweet style reaction to something someone else supposedly said",
-    "as the start of a longer thread (e.g. '1/' or 'thread:' at the start)",
-]
-
-PERSONAS = [
-    "a partisan pundit account with a large following",
-    "an ordinary person just venting after seeing the news",
-    "a self-styled independent/centrist who criticizes both sides",
-    "a young, terminally-online commenter",
-    "an older, more formal social media user who isn't very tech-savvy",
-    "a local news aggregator account sharing a headline with brief commentary",
-    "someone quote-replying to argue with a stranger",
 ]
 
 
 def build_prompt() -> str:
-    # Assign a DISTINCT topic/stance/tone/format/persona combo to each
-    # individual tweet in the batch -- assigning one combo per whole batch
-    # (the old approach) causes all N tweets in a call to read like
-    # paraphrases of each other, since they share the same instructions.
+    # Assign a DISTINCT topic/stance/tone/format combo to each individual
+    # tweet in the batch -- assigning one combo per whole batch (the old
+    # approach) causes all N tweets in a call to read like paraphrases of
+    # each other, since they share the same instructions.
     specs = []
     for i in range(TWEETS_PER_API_CALL):
         specs.append(
@@ -158,17 +152,16 @@ def build_prompt() -> str:
                 "stance": random.choice(STANCES),
                 "tone": random.choice(TONES),
                 "format": random.choice(FORMATS),
-                "persona": random.choice(PERSONAS),
             }
         )
 
     spec_lines = "\n".join(
-        f"{i+1}. Topic: {s['topic']} | Stance: {s['stance']} | Tone: {s['tone']} | Format: {s['format']} | Written as: {s['persona']}"
+        f"{i+1}. Topic: {s['topic']} | Stance: {s['stance']} | Tone: {s['tone']} | Format: {s['format']}"
         for i, s in enumerate(specs)
     )
 
     return f"""Write {TWEETS_PER_API_CALL} short social media posts (tweet-length, under 280 characters each) about US politics.
-Each post must follow ITS OWN spec below -- do not blend or repeat structure across posts. The "Written as" field describes the kind of person/account posting -- let it meaningfully shape vocabulary, formality, and structure, not just topic choice:
+Each post must follow ITS OWN spec below -- do not blend or repeat structure across posts:
 
 {spec_lines}
 
@@ -188,8 +181,8 @@ def generate_batch() -> list[str]:
     response = client.chat.completions.create(
         model=MODEL,
         max_tokens=2000,
-        temperature=1.1,  # slightly above default -- more lexical variety
-        frequency_penalty=0.6,  # discourage repeating the same words/phrases
+        temperature=1.1,       # slightly above default -- more lexical variety
+        frequency_penalty=0.6, # discourage repeating the same words/phrases
         presence_penalty=0.4,  # discourage repeating the same topics/structures
         messages=[{"role": "user", "content": prompt}],
     )
@@ -226,9 +219,7 @@ def main():
                 all_tweets.append({"text": t, "label": "ai"})
                 new_count += 1
 
-        print(
-            f"  Batch added {new_count} new tweets (total: {len(all_tweets)}/{NUM_TWEETS_TO_GENERATE})"
-        )
+        print(f"  Batch added {new_count} new tweets (total: {len(all_tweets)}/{NUM_TWEETS_TO_GENERATE})")
         time.sleep(0.5)  # light rate-limit courtesy pause
 
     all_tweets = all_tweets[:NUM_TWEETS_TO_GENERATE]
