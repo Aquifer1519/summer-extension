@@ -10,16 +10,16 @@ phase, before the extension itself is built.
 - [x] Sentiment scale prototype (single pretrained model, continuous score)
 - [x] AI-likelihood detector prototype (pretrained HC3-based classifier — placeholder, poor fit for short political posts, see Known limitations)
 - [x] Local Flask test server with textbox UI showing both scores side by side
-- [ ] Synthetic AI-generated political tweet dataset (to pair with real human tweets already on hand)
-- [ ] Custom fine-tuned AI-detection model, trained on political-post-domain data
-- [ ] Browser extension (manifest, content script, in-browser inference)
+- [x] Synthetic AI-generated political tweet dataset (to pair with real human tweets already on hand)
+- [x] Custom fine-tuned AI-detection model, trained on political-post-domain data
+- [x] Browser extension (manifest, content script, in-browser inference)
 
 ## Setup
 
 ```bash
 python -m venv venv
-source venv/bin/activate   # on Windows: venv\Scripts\activate
-pip install -r requirements.txt
+source venv/Scripts/activate   # on Windows: venv\Scripts\activate
+pip install -r requirements.txtpython -m venv venv
 ```
 
 at minimum you'll need:

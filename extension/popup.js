@@ -125,8 +125,15 @@ function showError(panel, labelEl, scoreEl, message) {
 
 async function runAnalysis() {
   if (isResetMode) {
-    clearAnalysis();
-    return;
+    const currentText = textEl.value.trim();
+    if (!currentText) {
+      // If textarea is empty, act as before and clear/return to prior screen.
+      clearAnalysis();
+      return;
+    }
+    // If there's text present, behave like a normal Scan: exit reset mode
+    // and continue to run analysis on the existing text.
+    isResetMode = false;
   }
 
   const text = textEl.value.trim();
@@ -165,7 +172,7 @@ async function runAnalysis() {
       const oppVal = data.ai_detection.ai_likelihood;
       const aiVal = 1 - oppVal;
 
-      aiLabel.textContent = aiLabelForScore(oppVal);
+      aiLabel.textContent = aiLabelForScore(aiVal);
       aiLabel.className = "label";
       aiScore.textContent = `AI likelihood: ${oppVal.toFixed(4)}`;
       const aiPct = aiVal * 100;
@@ -192,6 +199,36 @@ async function runAnalysis() {
 
 btn.addEventListener("click", runAnalysis);
 textEl.addEventListener("input", saveState);
+
+textEl.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") {
+    return;
+  }
+
+  if (event.ctrlKey || event.shiftKey || event.metaKey) {
+    event.preventDefault();
+    const { selectionStart, selectionEnd, value } = textEl;
+    const newline = "\n";
+    textEl.value =
+      value.slice(0, selectionStart) + newline + value.slice(selectionEnd);
+    const cursorPosition = selectionStart + newline.length;
+    textEl.selectionStart = textEl.selectionEnd = cursorPosition;
+    saveState();
+    return;
+  }
+
+  const trimmedText = textEl.value.trim();
+  if (!trimmedText) {
+    event.preventDefault();
+    clearAnalysis();
+    return;
+  }
+
+  event.preventDefault();
+  isResetMode = false;
+  runAnalysis();
+});
+
 
 // On popup open, restore the last analysis state if available.
 // If no prior state exists, try to prefill with whatever text is
