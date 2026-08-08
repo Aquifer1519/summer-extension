@@ -19,7 +19,7 @@ phase, before the extension itself is built.
 ```bash
 python -m venv venv
 source venv/Scripts/activate   # on Windows: venv\Scripts\activate
-pip install -r requirements.txtpython -m venv venv
+pip install -r requirements.txt
 ```
 
 at minimum you'll need:
@@ -55,6 +55,10 @@ see Next steps.
 
 ## Running things
 
+Download our trained model from [insert link here] OR
+train your own by generating tweets by calling the scripts in data_gen_scripts/ and then
+running train_custom_predictor.py
+
 ```bash
 # Sanity-check the sentiment scale on a few hardcoded examples
 python sentiment.py
@@ -63,9 +67,10 @@ python sentiment.py
 python detector.py
 
 # Stress-test sentiment against a sample of real tweets from the dataset
-python sample_tweets.py
+python sample.py
 
 # Launch the interactive test server (sentiment + AI likelihood side by side)
+
 python app.py
 # then open http://127.0.0.1:5000
 ```
