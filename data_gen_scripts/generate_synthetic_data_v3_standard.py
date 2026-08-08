@@ -45,8 +45,8 @@ FAILED_BATCH_LOG = Path("failed_batches.log")
 NUM_TWEETS_TO_GENERATE = 2500
 TWEETS_PER_API_CALL = 10
 MAX_BATCH_RETRIES = 3
-MAX_TOTAL_BATCH_ATTEMPTS = 900
-FINAL_RECOVERY_ATTEMPTS = 100
+MAX_TOTAL_BATCH_ATTEMPTS = 850
+FINAL_RECOVERY_ATTEMPTS = 250
 
 PROGRESS_STEP = 250
 MAX_QUESTION_RATE = 0.18
@@ -253,7 +253,7 @@ def too_similar(candidate: str, accepted_texts: list[str]) -> bool:
             existing_normalized,
         ).ratio()
 
-        if character_ratio >= 0.88:
+        if character_ratio >= 0.92:
             return True
 
         existing_words = word_set(existing)
@@ -262,7 +262,7 @@ def too_similar(candidate: str, accepted_texts: list[str]) -> bool:
         if all_words:
             jaccard = len(candidate_words & existing_words) / len(all_words)
 
-            if jaccard >= 0.80:
+            if jaccard >= 0.87:
                 return True
 
     return False
@@ -281,7 +281,7 @@ def repeated_opening(candidate: str, accepted_texts: list[str]) -> bool:
         opening_key(existing) == candidate_opening for existing in accepted_texts
     )
 
-    return use_count >= 2
+    return use_count >= 5
 
 
 # ---------------------------------------------------------------------
@@ -522,9 +522,6 @@ def valid_post(
 
     if HANDLE_RE.search(text):
         return False, "contains_handle"
-
-    if "?" in text and not profile["allow_question"]:
-        return False, "unplanned_question"
 
     normalized = normalize(text)
 
