@@ -172,10 +172,10 @@ async function runAnalysis() {
       const oppVal = data.ai_detection.ai_likelihood;
       const aiVal = 1 - oppVal;
 
-      aiLabel.textContent = aiLabelForScore(aiVal);
+      aiLabel.textContent = aiLabelForScore(oppVal);
       aiLabel.className = "label";
       aiScore.textContent = `AI likelihood: ${oppVal.toFixed(4)}`;
-      const aiPct = aiVal * 100;
+      const aiPct = oppVal * 100;
       aiMarker.style.left = aiPct + "%";
       aiPanel.style.display = "block";
 
