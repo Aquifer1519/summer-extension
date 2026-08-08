@@ -45,6 +45,7 @@ tweepfake-detector*/
 *.tsv
 data/
 datasets/
+test*
 
 # Self-generated synthetic AI-tweet dataset (large, regenerable via script
 # rather than versioned)

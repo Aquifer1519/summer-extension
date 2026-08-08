@@ -280,7 +280,7 @@ def repeated_opening(candidate: str, accepted_texts: list[str]) -> bool:
         opening_key(existing) == candidate_opening for existing in accepted_texts
     )
 
-    return use_count >= 5
+    return use_count >= 6
 
 
 # ---------------------------------------------------------------------
