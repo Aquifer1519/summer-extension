@@ -55,9 +55,20 @@ see Next steps.
 
 ## Running things
 
-Download our trained model from [insert link here] OR
+Download our trained model from [Google Drive](https://drive.google.com/drive/folders/11E4_eX1LTobrdhfyAHmNSj078-VVYplg?usp=drive_link) OR
 train your own by generating tweets by calling the scripts in data_gen_scripts/ and then
 running train_custom_predictor.py
+
+```bash
+# Launch the interactive test server (sentiment + AI likelihood side by side)
+python app.py
+# then open http://127.0.0.1:5000
+```
+
+Open a new chrome tab. Navigate to manage extensions. Enable developer mode (toggle from the top right), press the
+'Load unpacked' button and select the extension/ folder. Enable the custom extension and you are good to go!.
+
+For more testing:
 
 ```bash
 # Sanity-check the sentiment scale on a few hardcoded examples
@@ -68,11 +79,6 @@ python detector.py
 
 # Stress-test sentiment against a sample of real tweets from the dataset
 python sample.py
-
-# Launch the interactive test server (sentiment + AI likelihood side by side)
-
-python app.py
-# then open http://127.0.0.1:5000
 ```
 
 ## Known limitations
