@@ -12,13 +12,23 @@ Usage:
 
 Output: synthetic_tweets.json -- a list of {"text": ..., "label": "ai"}
 objects, ready to be combined with a sample of real human tweets into a
-single training file for fine_tune_detector.py.
+single training file for train_custom_detector.py.
 
 DESIGN NOTE ON DIVERSITY: generating N completions from one fixed prompt
 tends to produce near-duplicate style/structure -- bad for training a
 classifier, since it'd learn to recognize "one AI's one style" rather than
-AI-generated text in general. This script varies topic, stance, tone, and
-format instructions across calls to reduce that.
+AI-generated text in general. This script varies topic, stance, tone,
+format, persona, and writing technique across calls to reduce that.
+
+IMPORTANT -- LESSON LEARNED (do not reintroduce): earlier versions of the
+WRITING_TECHNIQUES list gave GPT literal example phrases as illustrations
+(e.g. "like 'not gonna lie...'"). GPT tended to copy those phrases
+verbatim into a large fraction of outputs, which became a trivial,
+perfectly-predictive shortcut feature during training -- the classifier
+learned "contains this exact phrase" instead of a genuine stylistic
+pattern, producing overconfident (near 0%/100%) predictions that didn't
+generalize. Describe techniques ABSTRACTLY, never with quotable exact
+wording.
 """
 
 import json
@@ -31,7 +41,7 @@ client = OpenAI()  # picks up OPENAI_API_KEY from environment
 
 MODEL = "gpt-4o-mini"  # confirm this matches a model your account has access to
 OUTPUT_FILE = "synthetic_tweets.json"
-NUM_TWEETS_TO_GENERATE = 10000
+NUM_TWEETS_TO_GENERATE = 300  # adjust to roughly match your real human tweet count
 TWEETS_PER_API_CALL = 10  # ask for a batch per call, cheaper than one-at-a-time
 
 TOPICS = [
@@ -124,7 +134,7 @@ TONES = [
     "celebratory",
     "matter-of-fact, reporting information",
     "mocking or dismissive of the opposing view",
-    "neutral and hedged, presenting both sides journalistically (e.g. 'while supporters argue X, critics say Y')",
+    "neutral and hedged, presenting both sides journalistically",
     "resigned or exhausted-sounding, like someone tired of the news cycle",
     "condescending, explaining something as if the reader doesn't already know it",
 ]
@@ -132,36 +142,63 @@ TONES = [
 FORMATS = [
     "using several hashtags",
     "with no hashtags at all, just plain text",
-    "written as a reply to another user (include an @mention placeholder like @someuser)",
+    "written as a reply to another user (invent a plausible-looking fake handle, never use a literal placeholder)",
     "including an emoji or two",
     "as a short, punchy one-liner",
     "as a slightly longer, multi-sentence post",
+    "using modern internet meme phrasing and structure",
+    "all lowercase, no punctuation, casual texting style",
+    "as a quote-tweet style reaction to something someone else supposedly said",
+    "as the start of a longer thread",
+]
+
+PERSONAS = [
+    "a partisan pundit account with a large following",
+    "an ordinary person just venting after seeing the news",
+    "a self-styled independent/centrist who criticizes both sides",
+    "a young, terminally-online commenter",
+    "an older, more formal social media user who isn't very tech-savvy",
+    "a local news aggregator account sharing a headline with brief commentary",
+    "someone quote-replying to argue with a stranger",
+]
+
+# Based on techniques an LLM itself described using to make a post read as
+# more human/less AI-detectable when explicitly asked to do so. Described
+# ABSTRACTLY only -- no literal quotable example phrases (see module
+# docstring for why that caused a shortcut-learning bug previously).
+WRITING_TECHNIQUES = [
+    "open with a personal, emotional framing rather than a general statement -- make it read like someone's individual reaction, not an abstract claim",
+    "focus on ONE single idea only -- do not cover multiple points or build a structured argument",
+    "use everyday conversational phrasing and casual word choices, avoid anything that sounds like formal or essay-style vocabulary",
+    "follow a natural spontaneous flow: a quick observation, then a personal reaction, then a short conclusion -- not a structured argument with a thesis",
+    "keep it short and slightly imperfect, the way people actually type quickly, not a polished, evenly-paced piece of writing",
 ]
 
 
 def build_prompt() -> str:
-    # Assign a DISTINCT topic/stance/tone/format combo to each individual
-    # tweet in the batch -- assigning one combo per whole batch (the old
-    # approach) causes all N tweets in a call to read like paraphrases of
-    # each other, since they share the same instructions.
+    # Assign a DISTINCT topic/stance/tone/format/persona/technique combo to
+    # each individual tweet in the batch -- assigning one combo per whole
+    # batch (an earlier approach) causes all N tweets in a call to read
+    # like paraphrases of each other, since they share the same
+    # instructions.
     specs = []
     for i in range(TWEETS_PER_API_CALL):
-        specs.append(
-            {
-                "topic": random.choice(TOPICS),
-                "stance": random.choice(STANCES),
-                "tone": random.choice(TONES),
-                "format": random.choice(FORMATS),
-            }
-        )
+        specs.append({
+            "topic": random.choice(TOPICS),
+            "stance": random.choice(STANCES),
+            "tone": random.choice(TONES),
+            "format": random.choice(FORMATS),
+            "persona": random.choice(PERSONAS),
+            "technique": random.choice(WRITING_TECHNIQUES),
+        })
 
     spec_lines = "\n".join(
-        f"{i+1}. Topic: {s['topic']} | Stance: {s['stance']} | Tone: {s['tone']} | Format: {s['format']}"
+        f"{i+1}. Topic: {s['topic']} | Stance: {s['stance']} | Tone: {s['tone']} | Format: {s['format']} | Written as: {s['persona']} | Writing approach: {s['technique']}"
         for i, s in enumerate(specs)
     )
 
     return f"""Write {TWEETS_PER_API_CALL} short social media posts (tweet-length, under 280 characters each) about US politics.
-Each post must follow ITS OWN spec below -- do not blend or repeat structure across posts:
+Each post must follow ITS OWN spec below -- do not blend or repeat structure across posts. The "Written as" field describes the kind of person/account posting, and "Writing approach" describes a specific stylistic technique to apply -- let both meaningfully shape vocabulary, formality, and structure, not just topic choice:
 
 {spec_lines}
 
@@ -169,8 +206,8 @@ Important instructions for realism and variety:
 - Do NOT use a uniform template. Real people don't all write in the "complaint + emoji + hashtag call-to-action" style -- vary sentence structure, length, and opening style across all {TWEETS_PER_API_CALL} posts.
 - Not every post needs emoji or a hashtag. Include some posts with NO emoji and NO hashtags at all.
 - Vary punctuation and polish: include some posts that are rougher, more fragment-like, or less grammatically perfect, the way real casual tweets are -- not every post should read like polished ad copy.
-- For any post using the "reply" format, invent a plausible-looking fake handle (e.g. something like @mike_t2020 or @patriot_jenny) -- never use the literal placeholder text "@someuser".
-- Avoid starting multiple posts with the same rhetorical pattern (e.g. don't have several posts all start with a question, or all start with "Just when...").
+- Vary your specific word choices and opening phrases across all {TWEETS_PER_API_CALL} posts -- do not reuse the same opening words, stock phrases, or sentence patterns between posts, even when they share a similar writing approach.
+- Avoid starting multiple posts with the same rhetorical pattern.
 
 Return ONLY a JSON array of {TWEETS_PER_API_CALL} strings, in the same order as the specs above, nothing else -- no preamble, no markdown code fences.
 Example format: ["post one text here", "post two text here", ...]"""
@@ -180,7 +217,8 @@ def generate_batch() -> list[str]:
     prompt = build_prompt()
     response = client.chat.completions.create(
         model=MODEL,
-        max_tokens=2000,
+        max_tokens=3000,       # bumped up from 2000 as cheap insurance against
+                                # truncation on longer formats (threads, multi-sentence)
         temperature=1.1,       # slightly above default -- more lexical variety
         frequency_penalty=0.6, # discourage repeating the same words/phrases
         presence_penalty=0.4,  # discourage repeating the same topics/structures
@@ -200,20 +238,57 @@ def generate_batch() -> list[str]:
         if not isinstance(tweets, list):
             raise ValueError("Expected a JSON list")
         return [str(t) for t in tweets]
-    except (json.JSONDecodeError, ValueError) as e:
-        print(f"  Warning: failed to parse batch response, skipping. Error: {e}")
-        print(f"  Raw response was: {raw_text[:200]}...")
-        return []
+    except (json.JSONDecodeError, ValueError):
+        pass  # fall through to the fallback extraction attempt below
+
+    # Fallback: the model sometimes adds stray text before/after the JSON
+    # array despite instructions not to. Try extracting just the [...] span
+    # rather than discarding the whole batch outright.
+    start = raw_text.find("[")
+    end = raw_text.rfind("]")
+    if start != -1 and end != -1 and end > start:
+        try:
+            tweets = json.loads(raw_text[start:end + 1])
+            if isinstance(tweets, list):
+                return [str(t) for t in tweets]
+        except json.JSONDecodeError:
+            pass
+
+    # Genuinely failed -- log the full raw response for later inspection
+    # (not just a truncated console print, which loses the pattern once
+    # the terminal scrolls past it) and report it as a real failure.
+    with open("failed_batches.log", "a", encoding="utf-8") as f:
+        f.write("=" * 40 + "\n")
+        f.write(raw_text + "\n")
+
+    print(f"  Warning: failed to parse batch response, skipping (logged to failed_batches.log)")
+    return None  # distinguishes "genuine failure" from "parsed but empty list"
 
 
 def main():
     all_tweets = []
     seen = set()  # dedupe exact repeats across batches
+    batch_count = 0
+    failed_batch_count = 0
 
     while len(all_tweets) < NUM_TWEETS_TO_GENERATE:
         batch = generate_batch()
+        batch_count += 1
+
+        if batch is None:
+            failed_batch_count += 1
+            time.sleep(0.5)
+            continue
+
         new_count = 0
         for t in batch:
+            t = t.strip()
+            # Defensive filters -- catch instruction-following failures that
+            # slip through even with prompt-level guidance:
+            if not t:
+                continue  # drop empty strings
+            if "@someuser" in t.lower():
+                continue  # drop literal placeholder text (should be a fake handle instead)
             if t not in seen:
                 seen.add(t)
                 all_tweets.append({"text": t, "label": "ai"})
@@ -227,7 +302,13 @@ def main():
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         json.dump(all_tweets, f, indent=2, ensure_ascii=False)
 
+    fail_rate = 100 * failed_batch_count / batch_count if batch_count else 0
     print(f"\nWrote {len(all_tweets)} synthetic AI tweets to {OUTPUT_FILE}")
+    print(f"Batch failure rate: {failed_batch_count}/{batch_count} ({fail_rate:.1f}%)")
+    if failed_batch_count > 0:
+        print(f"See failed_batches.log for the raw responses that failed to parse -- "
+              f"worth checking if failures cluster around specific formats/techniques, "
+              f"which would mean your surviving dataset is systematically skewed.")
 
 
 if __name__ == "__main__":
