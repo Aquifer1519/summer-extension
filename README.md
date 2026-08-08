@@ -30,17 +30,21 @@ pip install torch transformers scikit-learn pandas langdetect flask datasets acc
 
 ## Files
 
-| File                    | Purpose                                                                                                                                                                                                                                                            |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `sentiment.py`          | Core sentiment scoring logic. Loads a pretrained 3-class sentiment model (`cardiffnlp/twitter-roberta-base-sentiment-latest`) and derives a continuous score (`P(positive) - P(negative)`, range -1 to +1) plus a human-readable label (e.g. "strongly positive"). |
-| `detector.py`           | AI-generated text detection. Currently uses a pretrained HC3-based classifier (`Hello-SimpleAI/chatgpt-detector-roberta`) as a placeholder — see Known limitations. `detect(text)` is the swap point for the custom model later.                                   |
-| `sample_tweets.py`      | Loads a random sample of tweets from a local dataset CSV (see below), cleans and language-filters them, and runs them through `analyze()` as a stress test on real, messy text.                                                                                    |
-| `app.py`                | Local Flask server with a textbox UI for interactively testing arbitrary text against both the sentiment scale and the AI-likelihood detector at once. Run and open `http://127.0.0.1:5000`.                                                                       |
-| `fine_tune_detector.py` | Fine-tunes a RoBERTa classifier for AI-text detection. Originally written against the TweepFake dataset — currently on hold, see Known limitations. Will be repointed at a self-generated dataset instead.                                                         |
+## Files
+
+| File                                           | Purpose                                                                                                                                                                                                                                                                |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sentiment.py`                                 | Core sentiment scoring logic. Loads the pretrained 3-class sentiment model (`cardiffnlp/twitter-roberta-base-sentiment-latest`) and derives a continuous score (`P(positive) - P(negative)`, range -1 to +1) plus a human-readable label (e.g. `"strongly positive"`). |
+| `detector.py`                                  | AI-generated text detection. Currently uses a pretrained HC3-based classifier (`Hello-SimpleAI/chatgpt-detector-roberta`) as a placeholder — see **Known Limitations**. `detect(text)` is the swap point for the custom model later.                                   |
+| `sample.py`                                    | Loads a random sample of tweets from a local dataset CSV, cleans and language-filters them, and runs them through `analyze()` as a stress test on real, messy text.                                                                                                    |
+| `app.py`                                       | Local Flask server with a textbox UI for interactively testing arbitrary text against both the sentiment scale and AI-likelihood detector. Run and open `http://127.0.0.1:5000`.                                                                                       |
+| `data_gen_scripts/generate_synthetic_data*.py` | Uses OpenAI to generate a JSON file of AI-generated political tweets for training data.                                                                                                                                                                                |
+| `extension/`                                   | Packages the custom predictor into a working browser extension. Contains the frontend and backend logic. Requires `~/app.py` to be running.                                                                                                                            |
+| `train_custom_predictor.py`                    | Fine-tunes a RoBERTa classifier for AI-text detection using a self-generated training dataset.                                                                                                                                                                         |
 
 ## Dataset (sentiment / real human tweets)
 
-`sample_tweets.py` expects the **US Election 2020 Tweets** dataset from Kaggle:
+`sample.py` expects the **US Election 2020 Tweets** dataset from Kaggle:
 
 https://www.kaggle.com/datasets/manchunhui/us-election-2020-tweets
 
@@ -48,7 +52,7 @@ Download `hashtag_donaldtrump.csv` (and/or `hashtag_joebiden.csv`) and place
 it in the project root. These files are large and are **not** committed to
 this repo (see `.gitignore`) — download them yourself from the link above.
 
-Update `CSV_PATH` at the top of `sample_tweets.py` if your filename differs.
+Update `CSV_PATH` at the top of `sample.py` if your filename differs.
 
 This dataset also doubles as the "human" class for the AI-detection model —
 see Next steps.
@@ -84,7 +88,7 @@ python sample.py
 ## Known limitations
 
 - The sentiment model is English-only; non-English text is filtered out in
-  `sample_tweets.py` via `langdetect` rather than scored (it would produce
+  `sample.py` via `langdetect` rather than scored (it would produce
   unreliable results if scored directly).
 - No sarcasm detection — sarcastic text is a known hard failure mode for
   sentiment models generally, not something fixed here.
@@ -109,14 +113,9 @@ python sample.py
 
 ## Next steps
 
-Since TweepFake didn't pan out, the plan is to build a custom dataset:
+Refine the custom dataset:
 
 - **Human class:** sample directly from the already-downloaded election
   tweets CSVs (real text, no cost, already domain-matched).
-- **AI class:** generate synthetic political-post-style text via an LLM
-  API, prompted for variety across topics/tones/stances so the AI class
-  isn't just near-duplicate variations of one prompt.
-- Fine-tune `fine_tune_detector.py` (currently written against TweepFake's
-  format) against this new dataset instead, then swap `detect()` in
-  `detector.py` to load the custom-trained model in place of the pretrained
-  HC3 classifier.
+- **AI class:** Improve the prompting to create better synthetic tweets.
+  If possible sample from more models besides openAI.
